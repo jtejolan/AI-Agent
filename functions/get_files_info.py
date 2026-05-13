@@ -6,6 +6,7 @@ def get_files_info(working_directory, directory="."):
         target_dir = os.path.normpath(os.path.join(work_dir, directory))
         valid_target_dir = os.path.commonpath([work_dir, target_dir]) == work_dir
 
+        # VALIDATION BLOCK
         if not valid_target_dir:
             return f'Error: Cannot list "{directory}" as it is outside the permitted working directory'
         elif not os.path.isdir(target_dir):
