@@ -1,4 +1,5 @@
 import os
+import sys
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -25,40 +26,51 @@ def main():
 
     messages = [types.Content(role="user", parts=[types.Part(text=args.prompt)])]
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=messages,
-        config=types.GenerateContentConfig(
-            system_instruction=system_prompt, 
-            temperature=0,
-            tools=[available_functions],
+    for _ in range(20):
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=messages,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt, 
+                temperature=0,
+                tools=[available_functions],
+            )
         )
-    )
 
-    if response.usage_metadata is None:
-        raise RuntimeError("No usage metadata found")
+        if response.usage_metadata is None:
+            raise RuntimeError("No usage metadata found")
+        
+        if response.candidates:
+            for item in response.candidates:
+                messages.append(item.content)
 
-    if args.verbose:
-        print(f"User prompt: {args.prompt}")
-        print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
-        print(f"Response tokens:{response.usage_metadata.candidates_token_count}")
+        if args.verbose:
+            print(f"User prompt: {args.prompt}")
+            print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
+            print(f"Response tokens:{response.usage_metadata.candidates_token_count}")
 
-    function_calls = response.function_calls
-    function_responses = []
-    if function_calls == None:
-        pass
+        function_calls = response.function_calls
+        function_responses = []
+        if function_calls == None:
+            print(response.text)
+            break
+        else:
+            for call in function_calls:
+                function_call_result = call_function(call, args.verbose)
+                if not function_call_result.parts:
+                    raise Exception("Error")
+                if function_call_result.parts[0].function_response is None:
+                    raise Exception("Error")
+                if function_call_result.parts[0].function_response.response is None:
+                    raise Exception("Error")
+                function_responses.append(function_call_result.parts[0])
+                if args.verbose:
+                    print(f"-> {function_call_result.parts[0].function_response.response}")
+                messages.append(types.Content(role="user", parts=function_responses))
     else:
-        for call in function_calls:
-            function_call_result = call_function(call, args.verbose)
-            if not function_call_result.parts:
-                raise Exception("Error")
-            if function_call_result.parts[0].function_response is None:
-                raise Exception("Error")
-            if function_call_result.parts[0].function_response.response is None:
-                raise Exception("Error")
-            function_responses.append(function_call_result.parts[0])
-            if args.verbose:
-                print(f"-> {function_call_result.parts[0].function_response.response}")
+        print("Max iterations reached without a final response.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
